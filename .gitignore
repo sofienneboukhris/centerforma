@@ -7,14 +7,38 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
+# Dependencies
+node_modules/
+
+# Production build and cache
+dist/
+dist-ssr/
+.output/
+.vinxi/
+.tanstack/
+**/.tanstack/
+.nitro/
 *.local
+
+# Prisma generated clients
+prisma/generated/
+**/prisma/generated/
+**/generated/client/
+
+# Uploads & user personal data
+uploads/
+**/uploads/
+apps/api/uploads/
+
+# Environment files and secrets
+.env
+.env.*
+.env*.local
+apps/**/.env
+apps/**/.env.*
+apps/**/.env*.local
+!.env.example
+!apps/**/.env.example
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -23,10 +47,20 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Testing & backups
+playwright-report/
+test-results/
+backups/
+*.dump
+*.dump.*
+*.sql.bak
+

@@ -1,0 +1,745 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/client"
+}
+
+enum AppRole {
+  super_admin
+  directeur
+  responsable_pedagogique
+  comptable
+  enseignant
+  etudiant
+
+  @@map("app_role")
+}
+
+enum StatutInscription {
+  inscrit
+  transfere
+  suspendu
+  abandon
+  diplome
+
+  @@map("statut_inscription")
+}
+
+enum TypeExamen {
+  controle
+  devoir
+  tp
+  final
+  rattrapage
+
+  @@map("type_examen")
+}
+
+enum StatutPresence {
+  present
+  absent
+  retard
+  justifie
+
+  @@map("statut_presence")
+}
+
+enum TypePaiement {
+  inscription
+  scolarite
+  mensualite
+  autre
+
+  @@map("type_paiement")
+}
+
+model Profile {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom            String
+  prenom         String?
+  email          String?
+  telephone      String?
+  avatar_url     String?
+  bio            String?
+  adresse        String?
+  date_naissance DateTime? @db.Date
+  specialite     String?
+  classe_id      String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  roles                UserRole[]
+  etudiant_info        EtudiantInfo?
+  enseignant_info      EnseignantInfo?
+  inscriptions         ClasseEtudiant[]
+  cours_enseignes      Cours[]               @relation("EnseignantCours")
+  cours_documents      CoursDocument[]
+  documents            Document[]
+  notes                Note[]
+  emploi_du_temps      EmploiDuTemps[]       @relation("EnseignantEmploi")
+  absences             Absence[]
+  paiements            Paiement[]
+  paiements_enseignant PaiementEnseignant[]
+  notifications        Notification[]
+  audit_logs           AuditLog[]
+  login_audits         LoginAudit[]
+  matieres_enseignees  Matiere[]             @relation("EnseignantMatiere")
+  credential           UserCredential?
+  sessions             AuthSession[]
+  password_reset_tokens PasswordResetToken[]
+  role_assignments     UserRoleAssignment[]
+  group_memberships    GroupMember[]
+
+  @@map("profiles")
+}
+
+model UserRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  role       AppRole
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("user_roles")
+}
+
+model AnneeScolaire {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  libelle    String   @unique
+  debut      DateTime @db.Date
+  fin        DateTime @db.Date
+  active     Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  classes         Classe[]
+  frais_scolarite FraisScolarite[]
+
+  @@map("annee_scolaire")
+}
+
+model Salle {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom         String   @unique
+  capacite    Int?
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  cours           Cours[]
+  emploi_du_temps EmploiDuTemps[]
+
+  @@map("salles")
+}
+
+model FormationType {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  nom         String
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  domaines Domaine[]
+
+  @@map("formations_types")
+}
+
+model Domaine {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  formation_type_id String   @db.Uuid
+  nom               String
+  description       String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  formation_type FormationType @relation(fields: [formation_type_id], references: [id], onDelete: Cascade)
+  programmes     Programme[]
+
+  @@unique([formation_type_id, nom])
+  @@index([formation_type_id])
+  @@map("domaines")
+}
+
+model Programme {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  domaine_id  String   @db.Uuid
+  nom         String
+  description String?
+  duree       String?
+  annee       Int?
+  niveau      String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  domaine         Domaine          @relation(fields: [domaine_id], references: [id], onDelete: Cascade)
+  modules         Module[]
+  classes         Classe[]
+  frais_scolarite FraisScolarite[]
+  paiements       Paiement[]
+
+  @@index([domaine_id])
+  @@map("programmes")
+}
+
+model Module {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programme_id String   @db.Uuid
+  nom          String
+  description  String?
+  semestre     Int?
+  heures_total Int?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  programme Programme @relation(fields: [programme_id], references: [id], onDelete: Cascade)
+  matieres  Matiere[]
+
+  @@index([programme_id])
+  @@map("modules")
+}
+
+model Matiere {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  module_id     String   @db.Uuid
+  code          String?
+  nom           String
+  description   String?
+  heures        Int?
+  coefficient   Decimal  @default(1.00) @db.Decimal(5, 2)
+  enseignant_id String?  @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  module          Module          @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  enseignant      Profile?        @relation("EnseignantMatiere", fields: [enseignant_id], references: [id], onDelete: SetNull)
+  cours           Cours[]
+  documents       Document[]
+  examens         Examen[]
+  emploi_du_temps EmploiDuTemps[]
+  absences        Absence[]
+
+  @@index([module_id])
+  @@index([enseignant_id])
+  @@map("matieres")
+}
+
+model Classe {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom               String
+  programme_id      String   @db.Uuid
+  annee_scolaire_id String?  @db.Uuid
+  effectif_max      Int      @default(30)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  programme       Programme        @relation(fields: [programme_id], references: [id], onDelete: Restrict)
+  annee_scolaire  AnneeScolaire?   @relation(fields: [annee_scolaire_id], references: [id], onDelete: SetNull)
+  etudiants       ClasseEtudiant[]
+  cours           Cours[]
+  emploi_du_temps EmploiDuTemps[]
+  absences        Absence[]
+  examens         Examen[]
+
+  @@index([programme_id])
+  @@map("classes")
+}
+
+model EtudiantInfo {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id     String    @unique @db.Uuid
+  matricule      String?   @unique
+  date_naissance DateTime? @db.Date
+  sexe           String?
+  adresse        String?
+  photo_path     String?
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@map("etudiants_infos")
+}
+
+model EnseignantInfo {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id    String   @unique @db.Uuid
+  diplome       String?
+  specialite    String?
+  adresse       String?
+  cv_path       String?
+  photo_path    String?
+  tarif_horaire Decimal  @default(0) @db.Decimal(10, 2)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@map("enseignants_infos")
+}
+
+model ClasseEtudiant {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classe_id        String            @db.Uuid
+  etudiant_id      String            @db.Uuid
+  statut           StatutInscription @default(inscrit)
+  date_inscription DateTime          @default(now()) @db.Date
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+
+  classe   Classe  @relation(fields: [classe_id], references: [id], onDelete: Cascade)
+  etudiant Profile @relation(fields: [etudiant_id], references: [id], onDelete: Cascade)
+
+  @@unique([classe_id, etudiant_id])
+  @@index([etudiant_id])
+  @@map("classe_etudiants")
+}
+
+model Cours {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matiere_id    String    @db.Uuid
+  classe_id     String?   @db.Uuid
+  titre         String
+  description   String?
+  date          DateTime? @db.Date
+  heure_debut   String?
+  heure_fin     String?
+  salle_id      String?   @db.Uuid
+  enseignant_id String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  matiere    Matiere         @relation(fields: [matiere_id], references: [id], onDelete: Cascade)
+  classe     Classe?         @relation(fields: [classe_id], references: [id], onDelete: SetNull)
+  salle      Salle?          @relation(fields: [salle_id], references: [id], onDelete: SetNull)
+  enseignant Profile?        @relation("EnseignantCours", fields: [enseignant_id], references: [id], onDelete: SetNull)
+  documents  CoursDocument[]
+  absences   Absence[]
+
+  @@index([matiere_id])
+  @@index([classe_id])
+  @@index([enseignant_id])
+  @@index([date])
+  @@map("cours")
+}
+
+model CoursDocument {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cours_id     String   @db.Uuid
+  type         String
+  nom          String
+  storage_path String
+  uploader_id  String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  cours    Cours    @relation(fields: [cours_id], references: [id], onDelete: Cascade)
+  uploader Profile? @relation(fields: [uploader_id], references: [id], onDelete: SetNull)
+
+  @@index([cours_id])
+  @@map("cours_documents")
+}
+
+model Document {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matiere_id   String   @db.Uuid
+  type         String
+  nom          String
+  storage_path String
+  uploader_id  String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  matiere  Matiere  @relation(fields: [matiere_id], references: [id], onDelete: Cascade)
+  uploader Profile? @relation(fields: [uploader_id], references: [id], onDelete: SetNull)
+
+  @@index([matiere_id])
+  @@map("documents")
+}
+
+model Examen {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matiere_id  String     @db.Uuid
+  classe_id   String?    @db.Uuid
+  nom         String
+  type        TypeExamen @default(controle)
+  date        DateTime?  @db.Date
+  heure       String?
+  duree_min   Int?
+  coefficient Decimal    @default(1.00) @db.Decimal(5, 2)
+  note_max    Decimal    @default(20.00) @db.Decimal(5, 2)
+  sujet_path  String?
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+
+  matiere Matiere        @relation(fields: [matiere_id], references: [id], onDelete: Cascade)
+  classe  Classe?        @relation(fields: [classe_id], references: [id], onDelete: Cascade)
+  notes   Note[]
+  corrige ExamenCorrige?
+
+  @@index([matiere_id])
+  @@index([classe_id])
+  @@map("examens")
+}
+
+model ExamenCorrige {
+  examen_id    String   @id @db.Uuid
+  corrige_path String
+  publie       Boolean  @default(false)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  examen Examen @relation(fields: [examen_id], references: [id], onDelete: Cascade)
+
+  @@map("examens_corriges")
+}
+
+model Note {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examen_id   String   @db.Uuid
+  etudiant_id String   @db.Uuid
+  note        Decimal? @db.Decimal(5, 2)
+  commentaire String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  examen   Examen  @relation(fields: [examen_id], references: [id], onDelete: Cascade)
+  etudiant Profile @relation(fields: [etudiant_id], references: [id], onDelete: Cascade)
+
+  @@unique([examen_id, etudiant_id])
+  @@index([etudiant_id])
+  @@map("notes")
+}
+
+model EmploiDuTemps {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classe_id     String   @db.Uuid
+  matiere_id    String   @db.Uuid
+  enseignant_id String?  @db.Uuid
+  salle_id      String?  @db.Uuid
+  jour          Int
+  heure_debut   String
+  heure_fin     String
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  classe     Classe   @relation(fields: [classe_id], references: [id], onDelete: Cascade)
+  matiere    Matiere  @relation(fields: [matiere_id], references: [id], onDelete: Cascade)
+  enseignant Profile? @relation("EnseignantEmploi", fields: [enseignant_id], references: [id], onDelete: SetNull)
+  salle      Salle?   @relation(fields: [salle_id], references: [id], onDelete: SetNull)
+
+  @@index([classe_id])
+  @@index([enseignant_id])
+  @@index([matiere_id])
+  @@index([jour])
+  @@map("emploi_du_temps")
+}
+
+model Absence {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  etudiant_id   String         @db.Uuid
+  matiere_id    String?        @db.Uuid
+  cours_id      String?        @db.Uuid
+  classe_id     String?        @db.Uuid
+  date          DateTime       @db.Date
+  heure         String?
+  statut        StatutPresence @default(present)
+  justifiee     Boolean        @default(false)
+  motif         String?
+  justification String?
+  commentaire   String?
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+
+  etudiant Profile  @relation(fields: [etudiant_id], references: [id], onDelete: Cascade)
+  matiere  Matiere? @relation(fields: [matiere_id], references: [id], onDelete: SetNull)
+  cours    Cours?   @relation(fields: [cours_id], references: [id], onDelete: SetNull)
+  classe   Classe?  @relation(fields: [classe_id], references: [id], onDelete: SetNull)
+
+  @@index([etudiant_id])
+  @@index([classe_id])
+  @@index([cours_id])
+  @@index([date])
+  @@map("absences")
+}
+
+model FraisScolarite {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programme_id      String   @db.Uuid
+  annee_scolaire_id String?  @db.Uuid
+  frais_inscription Decimal  @default(0) @db.Decimal(10, 2)
+  frais_scolarite   Decimal  @default(0) @db.Decimal(10, 2)
+  mensualite        Decimal  @default(0) @db.Decimal(10, 2)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  programme      Programme      @relation(fields: [programme_id], references: [id], onDelete: Cascade)
+  annee_scolaire AnneeScolaire? @relation(fields: [annee_scolaire_id], references: [id], onDelete: SetNull)
+
+  @@map("frais_scolarite")
+}
+
+model Paiement {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  etudiant_id  String       @db.Uuid
+  programme_id String?      @db.Uuid
+  type         TypePaiement @default(scolarite)
+  montant      Decimal      @db.Decimal(10, 2)
+  remise       Decimal      @default(0) @db.Decimal(10, 2)
+  date         DateTime     @default(now()) @db.Date
+  mode         String?
+  reference    String?
+  statut       String       @default("paye")
+  commentaire  String?
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+
+  etudiant  Profile    @relation(fields: [etudiant_id], references: [id], onDelete: Cascade)
+  programme Programme? @relation(fields: [programme_id], references: [id], onDelete: SetNull)
+
+  @@index([etudiant_id])
+  @@index([statut])
+  @@index([date])
+  @@map("paiements")
+}
+
+model PaiementEnseignant {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  enseignant_id String   @db.Uuid
+  periode_debut DateTime @db.Date
+  periode_fin   DateTime @db.Date
+  heures        Decimal  @default(0) @db.Decimal(10, 2)
+  tarif_horaire Decimal  @default(0) @db.Decimal(10, 2)
+  montant       Decimal  @default(0) @db.Decimal(10, 2)
+  date          DateTime @default(now()) @db.Date
+  mode          String?
+  reference     String?
+  statut        String   @default("paye")
+  commentaire   String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  enseignant Profile @relation(fields: [enseignant_id], references: [id], onDelete: Cascade)
+
+  @@map("paiements_enseignants")
+}
+
+model Notification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  type       String
+  titre      String
+  message    String?
+  lien       String?
+  lu         Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, lu])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?  @db.Uuid
+  action     String
+  table_name String?
+  row_id     String?
+  payload    Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([created_at(sort: Desc)])
+  @@map("audit_log")
+}
+
+model LoginAudit {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String
+  user_id    String?  @db.Uuid
+  role       AppRole?
+  success    Boolean
+  reason     String?
+  ip         String?
+  user_agent String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([created_at(sort: Desc)])
+  @@index([email])
+  @@map("login_audit")
+}
+
+model UserCredential {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @unique @db.Uuid
+  email          String   @unique
+  password_hash  String
+  email_verified Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@map("user_credentials")
+}
+
+model AuthSession {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String   @db.Uuid
+  refresh_token_hash String   @unique
+  expires_at         DateTime @db.Timestamptz(6)
+  revoked            Boolean  @default(false)
+  ip                 String?
+  user_agent         String?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([refresh_token_hash])
+  @@map("auth_sessions")
+}
+
+model PasswordResetToken {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  token_hash String   @unique
+  expires_at DateTime @db.Timestamptz(6)
+  used       Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@map("password_reset_tokens")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  nom         String
+  description String?
+  is_system   Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  permissions      RolePermission[]
+  user_assignments UserRoleAssignment[]
+  group_roles      GroupRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  module      String
+  action      String
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  role_permissions  RolePermission[]
+  group_permissions GroupPermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_id       String   @db.Uuid
+  permission_id String   @db.Uuid
+  granted       Boolean  @default(true)
+
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@index([role_id])
+  @@index([permission_id])
+  @@map("role_permissions")
+}
+
+model UserGroup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom         String   @unique
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  members           GroupMember[]
+  group_roles       GroupRole[]
+  group_permissions GroupPermission[]
+
+  @@map("user_groups")
+}
+
+model GroupMember {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id   String   @db.Uuid
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  group UserGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user  Profile   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@index([group_id])
+  @@index([user_id])
+  @@map("group_members")
+}
+
+model GroupRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id   String   @db.Uuid
+  role_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  group UserGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  role  Role      @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, role_id])
+  @@index([group_id])
+  @@index([role_id])
+  @@map("group_roles")
+}
+
+model GroupPermission {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id      String   @db.Uuid
+  permission_id String   @db.Uuid
+  granted       Boolean  @default(true)
+
+  group      UserGroup  @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, permission_id])
+  @@index([group_id])
+  @@index([permission_id])
+  @@map("group_permissions")
+}
+
+model UserRoleAssignment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  role_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role    @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+  @@index([user_id])
+  @@index([role_id])
+  @@map("user_role_assignments")
+}
+
+
